@@ -3589,6 +3589,16 @@
       }
 
       // ── MEETINGS ──
+      // Meeting times are convention wall-clock, not instants. The form writes
+      // a naive "2026-07-10T10:00" which a timestamptz column stores as UTC, so
+      // drop any offset on read: 10:00 must read as 10:00 in every timezone.
+      function parseWallClock(s) {
+        if (!s) return null;
+        const naive = String(s).replace(/(?:Z|[+-]\d{2}:?\d{2})$/, "");
+        const d = new Date(naive);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
       // Public: meetings are the source for the Meetups view. Writes stay
       // admin-only via saveMeetingToDb / deleteMeetingFromDb.
       async function loadMeetings() {
@@ -4249,7 +4259,7 @@
         const meetingCards = filtered.length
           ? filtered
               .map((m) => {
-                const dt = m.datetime ? new Date(m.datetime) : null;
+                const dt = parseWallClock(m.datetime);
                 const dtStr = dt
                   ? dt.toLocaleDateString("en-US", {
                       weekday: "short",
@@ -4438,11 +4448,9 @@
       // ═══════════════════════════════════════════════════════
       // MEETUPS VIEW
       // ═══════════════════════════════════════════════════════
-      // Uses the same `new Date(m.datetime)` parse as renderMeetingsView, so
-      // both views agree on the wall-clock time whatever the column type is.
       function meetingToEvent(m) {
-        const dt = m.datetime ? new Date(m.datetime) : null;
-        const ok = dt && !isNaN(dt.getTime());
+        const dt = parseWallClock(m.datetime);
+        const ok = !!dt;
         return {
           title: m.topic || "",
           day: ok ? dt.toLocaleDateString("en-US", { weekday: "long" }) : "",
