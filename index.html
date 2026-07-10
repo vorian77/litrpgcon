@@ -3544,8 +3544,9 @@
       }
 
       // ── PROFILES ──
+      // Public: anon can read `profiles`, and fanEvents have no hardcoded
+      // fallback, so the Meetups view is empty until this runs.
       async function loadProfiles() {
-        if (!sbSession) return;
         try {
           const rows = await sbFetch("profiles?select=*");
           profiles = {};
@@ -3686,8 +3687,7 @@
             },
           });
           sbSession = null;
-          profiles = {};
-          meetings = [];
+          meetings = []; // session-scoped; profiles are public, keep them
           setAdminUI(false);
           return;
         }
@@ -4672,7 +4672,8 @@
         });
       });
 
-      render(); // initial render with no admin data; data loads after sign-in
+      render(); // paint from hardcoded data; profiles hydrate asynchronously
+      loadProfiles().then(render); // meetings stay behind the session
 
       // ═══════════════════════════════════════════════════════
       // PASSWORD RECOVERY — intercept #type=recovery on load
