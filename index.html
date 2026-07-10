@@ -1355,7 +1355,7 @@
           id="meetingsTab"
           style="display: none"
         >
-          🤝 Meetings
+          🤝 Manage Meetups
         </button>
         <button class="tab" data-view="events">🤩 Meetups</button>
         <button class="tab" data-view="schedule">📅 Full Schedule</button>
@@ -3587,8 +3587,9 @@
       }
 
       // ── MEETINGS ──
+      // Public: meetings are the source for the Meetups view. Writes stay
+      // admin-only via saveMeetingToDb / deleteMeetingFromDb.
       async function loadMeetings() {
-        if (!sbSession) return;
         try {
           const [rows, parts] = await Promise.all([
             sbFetch("meetings?select=*&order=created_at.asc"),
@@ -3686,8 +3687,7 @@
               Authorization: `Bearer ${sbSession?.access_token}`,
             },
           });
-          sbSession = null;
-          meetings = []; // session-scoped; profiles are public, keep them
+          sbSession = null; // profiles and meetings are public; keep them
           setAdminUI(false);
           return;
         }
@@ -4432,30 +4432,36 @@
       // ═══════════════════════════════════════════════════════
       // MEETUPS VIEW
       // ═══════════════════════════════════════════════════════
-      const DAY_ORDER = { Thursday: 0, Friday: 1, Saturday: 2, Sunday: 3 };
-
-      function parseSortKey(e) {
-        const dayVal = DAY_ORDER[e.day] ?? 99;
-        const timeStr = (e.time || "").toUpperCase();
-        const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/);
-        if (!m) return dayVal * 10000 + 9999;
-        let h = parseInt(m[1]),
-          min = parseInt(m[2]);
-        const period = m[3];
-        if (period === "PM" && h !== 12) h += 12;
-        if (period === "AM" && h === 12) h = 0;
-        return dayVal * 10000 + h * 100 + min;
+      // Uses the same `new Date(m.datetime)` parse as renderMeetingsView, so
+      // both views agree on the wall-clock time whatever the column type is.
+      function meetingToEvent(m) {
+        const dt = m.datetime ? new Date(m.datetime) : null;
+        const ok = dt && !isNaN(dt.getTime());
+        return {
+          title: m.topic || "",
+          day: ok ? dt.toLocaleDateString("en-US", { weekday: "long" }) : "",
+          time: ok
+            ? dt.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              })
+            : "",
+          location: m.hotelLocation || "",
+          duration: "",
+          description: "",
+          sortKey: ok ? dt.getTime() : Infinity,
+        };
       }
 
       function renderEventsView(q) {
         const ql = q.toLowerCase();
 
-        // Collect all events first (unfiltered) to build room list
+        // One card per attendee, so a meeting with N participants shows N cards.
         const allEventsRaw = [];
-        sortedNames.forEach((name) => {
-          const p = getProfile(name);
-          (p.fanEvents || []).forEach((e) =>
-            allEventsRaw.push({ name, event: e }),
+        meetings.forEach((m) => {
+          const event = meetingToEvent(m);
+          (m.participants || []).forEach((name) =>
+            allEventsRaw.push({ name, event }),
           );
         });
 
@@ -4480,7 +4486,7 @@
         });
 
         // Sort chronologically
-        allEvents.sort((a, b) => parseSortKey(a.event) - parseSortKey(b.event));
+        allEvents.sort((a, b) => a.event.sortKey - b.event.sortKey);
 
         // Room filter pills (only show if rooms exist)
         const roomPills = rooms.length
@@ -4493,7 +4499,7 @@
 
         if (!allEvents.length) {
           const hint = adminMode
-            ? "Open any participant card → ✏ Edit → scroll to Meetup Events → Add Event."
+            ? "Go to the 🤝 Manage Meetups tab → + Log Meeting."
             : "Check back soon — the schedule is being updated.";
           return `${roomPills}<div class="empty-state">
       <div class="icon">🤩</div>
@@ -4672,8 +4678,8 @@
         });
       });
 
-      render(); // paint from hardcoded data; profiles hydrate asynchronously
-      loadProfiles().then(render); // meetings stay behind the session
+      render(); // paint from hardcoded data; Supabase data hydrates below
+      Promise.all([loadProfiles(), loadMeetings()]).then(render);
 
       // ═══════════════════════════════════════════════════════
       // PASSWORD RECOVERY — intercept #type=recovery on load
