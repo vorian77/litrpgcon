@@ -3512,7 +3512,24 @@
           },
           body: JSON.stringify(body),
         });
-        return res.json();
+        const text = await res.text();
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = { message: text };
+        }
+        return { status: res.status, data };
+      }
+
+      // GoTrue error shapes vary by version: {error,error_description},
+      // {code,error_code,msg}, or {message} for gateway-level rejections.
+      function authErrorMessage(status, data) {
+        const detail =
+          data.error_description || data.msg || data.message || data.error;
+        return detail
+          ? `${detail} (HTTP ${status})`
+          : `Sign-in failed (HTTP ${status}).`;
       }
 
       // ── PROFILES ──
@@ -3680,15 +3697,12 @@
         btn.disabled = true;
         errEl.textContent = "";
         try {
-          const data = await sbAuthFetch("token?grant_type=password", {
-            email,
-            password,
-          });
-          if (data.error || !data.access_token) {
-            errEl.textContent =
-              data.error_description ||
-              data.error ||
-              "Sign-in failed. Try again.";
+          const { status, data } = await sbAuthFetch(
+            "token?grant_type=password",
+            { email, password },
+          );
+          if (!data.access_token) {
+            errEl.textContent = authErrorMessage(status, data);
             btn.textContent = "Sign In";
             btn.disabled = false;
             return;
@@ -3703,7 +3717,9 @@
           await loadMeetings();
           setAdminUI(true);
         } catch (e) {
-          errEl.textContent = "Connection error. Check your network.";
+          // A CORS block or blocked request surfaces here as "Failed to fetch",
+          // which is a different problem than a rejected credential.
+          errEl.textContent = `Connection error: ${e.message}`;
           btn.textContent = "Sign In";
           btn.disabled = false;
         }
