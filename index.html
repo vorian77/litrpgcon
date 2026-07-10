@@ -87,6 +87,28 @@
         color: var(--muted);
         opacity: 0.5;
       }
+      .site-footer {
+        margin: 36px auto 28px;
+        padding: 18px 16px 0;
+        max-width: 760px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+      .site-footer a {
+        color: var(--teal);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+      }
+      .site-footer a:hover,
+      .site-footer a:focus-visible {
+        border-bottom-color: var(--teal);
+      }
+      .footer-contribute {
+        margin-top: 4px;
+      }
       .admin-btn {
         position: absolute;
         top: 16px;
@@ -1369,6 +1391,17 @@
     </div>
 
     <main id="main"></main>
+
+    <footer class="site-footer">
+      <div>By Phyllip Hall and Seth Ring</div>
+      <div class="footer-contribute">
+        Want to help build this?
+        <a
+          href="mailto:seth@sethring.com?subject=Program%20Sidekick%20—%20I%27d%20like%20to%20help"
+          >Email Seth</a
+        >
+      </div>
+    </footer>
 
     <script>
       // ═══════════════════════════════════════════════════════
