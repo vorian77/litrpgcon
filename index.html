@@ -3827,6 +3827,40 @@
       let mgRoomFilter = ""; // Meetups room filter
       let currentView = "people";
       let searchTerm = "";
+
+      // ── SEARCH NORMALIZATION ──
+      // Fold diacritics, spell out "&", and reduce every other non-alphanumeric
+      // character to a space, so "A.P. Beswick" and "AP Beswick" collapse to the
+      // same string and either query finds the other.
+      const _normCache = new Map();
+      function normText(s) {
+        const raw = String(s ?? "");
+        let hit = _normCache.get(raw);
+        if (hit === undefined) {
+          hit = raw
+            .normalize("NFKD")
+            .replace(/[̀-ͯ]/g, "")
+            .toLowerCase()
+            .replace(/&/g, " and ")
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+          _normCache.set(raw, hit);
+        }
+        return hit;
+      }
+
+      // Returns a predicate so the query is normalized once per render rather
+      // than once per field. Space-stripped fallback catches "BJWebster".
+      function makeMatcher(q) {
+        const needle = normText(q);
+        if (!needle) return () => true;
+        const squashed = needle.replace(/ /g, "");
+        return (hay) => {
+          const h = normText(hay);
+          return h.includes(needle) || h.replace(/ /g, "").includes(squashed);
+        };
+      }
+
       let openCards = {}; // name -> active body tab
       let profiles = {}; // name -> {photo,bio,publisher,booth,social,series,fanEvents}
       let adminTarget = "";
@@ -4296,19 +4330,18 @@
       // PEOPLE VIEW
       // ═══════════════════════════════════════════════════════
       function renderPeopleView(q) {
-        const ql = q.toLowerCase();
+        const hit = makeMatcher(q);
         const filtered = sortedNames.filter((name) => {
-          if (!ql) return true;
-          if (name.toLowerCase().includes(ql)) return true;
+          if (!normText(q)) return true;
+          if (hit(name)) return true;
           const p = getProfile(name);
-          if ((p.series || []).some((s) => s.toLowerCase().includes(ql)))
-            return true;
-          if ((p.publisher || "").toLowerCase().includes(ql)) return true;
+          if ((p.series || []).some(hit)) return true;
+          if (hit(p.publisher || "")) return true;
           return participantIndex[name].some(
             ({ panel }) =>
-              panel.title.toLowerCase().includes(ql) ||
-              panel.description.toLowerCase().includes(ql) ||
-              panel.location?.toLowerCase().includes(ql),
+              hit(panel.title) ||
+              hit(panel.description) ||
+              hit(panel.location || ""),
           );
         });
         if (!filtered.length) return emptyState("No adventurers found.");
@@ -4647,14 +4680,14 @@
       }
 
       function renderMeetingsView(q) {
-        const ql = q.toLowerCase();
+        const hit = makeMatcher(q);
         const filtered = meetings
           .filter((m) => {
-            if (!ql) return true;
+            if (!normText(q)) return true;
             return (
-              m.participants.some((p) => p.toLowerCase().includes(ql)) ||
-              (m.topic || "").toLowerCase().includes(ql) ||
-              (m.hotelLocation || "").toLowerCase().includes(ql)
+              m.participants.some(hit) ||
+              hit(m.topic || "") ||
+              hit(m.hotelLocation || "")
             );
           })
           .slice()
@@ -4800,13 +4833,9 @@
           dd.innerHTML = "";
           return;
         }
-        const ql = q.toLowerCase();
+        const hit = makeMatcher(q);
         const matches = sortedNames
-          .filter(
-            (n) =>
-              n.toLowerCase().includes(ql) &&
-              !meetingFormParticipants.includes(n),
-          )
+          .filter((n) => hit(n) && !meetingFormParticipants.includes(n))
           .slice(0, 8);
         if (!matches.length) {
           dd.classList.remove("open");
@@ -4945,7 +4974,7 @@
       }
 
       function renderEventsView(q) {
-        const ql = q.toLowerCase();
+        const hit = makeMatcher(q);
 
         // One card per attendee, so a meeting with N participants shows N cards.
         const allEventsRaw = [];
@@ -4966,11 +4995,10 @@
         // Apply search + room filter
         const allEvents = allEventsRaw.filter(({ name, event: e }) => {
           const matchesSearch =
-            !ql ||
-            name.toLowerCase().includes(ql) ||
-            (e.title || "").toLowerCase().includes(ql) ||
-            (e.location || "").toLowerCase().includes(ql) ||
-            (e.description || "").toLowerCase().includes(ql);
+            hit(name) ||
+            hit(e.title || "") ||
+            hit(e.location || "") ||
+            hit(e.description || "");
           const matchesRoom =
             !mgRoomFilter || (e.location || "") === mgRoomFilter;
           return matchesSearch && matchesRoom;
@@ -5075,7 +5103,7 @@
       // SCHEDULE VIEW
       // ═══════════════════════════════════════════════════════
       function renderScheduleView(q, dayFilter) {
-        const ql = q.toLowerCase();
+        const hit = makeMatcher(q);
         const days =
           dayFilter === "schedule"
             ? ["Friday", "Saturday", "Sunday"]
@@ -5090,13 +5118,12 @@
         days.forEach((day) => {
           const dayPanels = panels.filter((p) => {
             if (p.day !== day) return false;
-            if (!ql) return true;
             return (
-              p.title.toLowerCase().includes(ql) ||
-              p.description.toLowerCase().includes(ql) ||
-              (p.panelists || []).some((n) => n.toLowerCase().includes(ql)) ||
-              (p.moderator || "").toLowerCase().includes(ql) ||
-              (p.location || "").toLowerCase().includes(ql)
+              hit(p.title) ||
+              hit(p.description) ||
+              (p.panelists || []).some(hit) ||
+              hit(p.moderator || "") ||
+              hit(p.location || "")
             );
           });
           if (!dayPanels.length) return;
