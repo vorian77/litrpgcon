@@ -3690,8 +3690,11 @@
               Authorization: `Bearer ${sbSession?.access_token}`,
             },
           });
-          sbSession = null; // profiles and meetings are public; keep them
+          sbSession = null;
           setAdminUI(false);
+          // Re-read as anon so signing out shows exactly what the public sees,
+          // rather than leaving the admin's rows sitting in memory.
+          Promise.all([loadProfiles(), loadMeetings()]).then(render);
           return;
         }
         document.getElementById("loginOverlay").classList.remove("hidden");
