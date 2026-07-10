@@ -3422,7 +3422,9 @@
       // ═══════════════════════════════════════════════════════
       // STATE & STORAGE
       // ═══════════════════════════════════════════════════════
-      let adminMode = false;
+      let adminMode = false; // true only for role === "admin"
+      let currentRole = null; // "admin" | "author" | null when signed out
+      let myParticipantName = null; // roster name this account may schedule for
       let meetings = []; // [{id, participants:[], datetime, hotelLocation, topic, createdAt}]
       let meetingFormOpen = false;
       let meetingFormParticipants = [];
@@ -3588,6 +3590,22 @@
         });
       }
 
+      // Maps this account to its roster name. Authors may only schedule for it;
+      // admins have no row and may schedule for anyone. Absent table or row
+      // leaves it null, which the UI treats as "cannot self-schedule".
+      async function loadMyParticipantName() {
+        myParticipantName = null;
+        if (!sbSession?.user?.id) return;
+        try {
+          const rows = await sbFetch(
+            `guest_accounts?select=participant_name&user_id=eq.${encodeURIComponent(sbSession.user.id)}`,
+          );
+          myParticipantName = rows?.[0]?.participant_name || null;
+        } catch (e) {
+          console.error("loadMyParticipantName:", e);
+        }
+      }
+
       // ── MEETINGS ──
       // Meeting times are convention wall-clock, not instants. The form writes
       // a naive "2026-07-10T10:00" which a timestamptz column stores as UTC, so
@@ -3615,6 +3633,7 @@
               hotelLocation: r.hotel_location,
               topic: r.topic,
               createdAt: r.created_at,
+              ownerId: r.owner_id || null, // set by the column's auth.uid() default
               participants: [],
             };
           });
@@ -3669,8 +3688,20 @@
         if (t) t.style.display = visible ? "" : "none";
       }
 
+      // Role lives in app_metadata, which only the service role can write.
+      // user_metadata is user-writable and would let an author self-promote.
+      // Anything without an explicit "admin" is least-privileged to author.
+      function roleFromSession(session) {
+        if (!session) return null;
+        return session.user?.app_metadata?.role === "admin"
+          ? "admin"
+          : "author";
+      }
+
+      // `on` means signed in. Admin powers are a strictly narrower thing.
       function setAdminUI(on) {
-        adminMode = on;
+        currentRole = on ? roleFromSession(sbSession) : null;
+        adminMode = currentRole === "admin";
         const btn = document.getElementById("adminToggleBtn");
         if (on) {
           btn.classList.add("active");
@@ -3691,8 +3722,8 @@
       }
 
       function handleAdminClick() {
-        if (adminMode) {
-          // Sign out
+        if (sbSession) {
+          // Sign out — authors are signed in too, but adminMode is false
           fetch(`${SUPABASE_URL}/auth/v1/logout`, {
             method: "POST",
             headers: {
@@ -3701,6 +3732,7 @@
             },
           });
           sbSession = null;
+          myParticipantName = null;
           setAdminUI(false);
           // Re-read as anon so signing out shows exactly what the public sees,
           // rather than leaving the admin's rows sitting in memory.
@@ -3735,6 +3767,7 @@
             return;
           }
           sbSession = data;
+          await loadMyParticipantName();
           document.getElementById("loginOverlay").classList.add("hidden");
           document.getElementById("loginEmail").value = "";
           document.getElementById("loginInput").value = "";
@@ -3786,14 +3819,22 @@
         btn.disabled = true;
         msgEl.textContent = "";
         try {
-          const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-            method: "POST",
-            headers: {
-              apikey: SUPABASE_ANON,
-              "Content-Type": "application/json",
+          // Without redirect_to, the emailed link follows the dashboard's Site
+          // URL, which defaults to http://localhost:3000 and strands the user.
+          const redirectTo = encodeURIComponent(
+            location.origin + location.pathname,
+          );
+          const res = await fetch(
+            `${SUPABASE_URL}/auth/v1/recover?redirect_to=${redirectTo}`,
+            {
+              method: "POST",
+              headers: {
+                apikey: SUPABASE_ANON,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ email }),
             },
-            body: JSON.stringify({ email }),
-          });
+          );
           if (res.ok) {
             msgEl.style.color = "var(--teal)";
             msgEl.textContent = "✓ Reset link sent! Check your email.";
@@ -4178,23 +4219,36 @@
       // ═══════════════════════════════════════════════════════
       // MEETINGS & CONNECTIONS LOG (admin only)
       // ═══════════════════════════════════════════════════════
+      // Common areas only. The named programming rooms (Colorado Ballroom,
+      // Crystal Peak, Sopris A/B, Columbia, Harvard, Yale, Princeton) are
+      // booked for panels and cannot be used for meetups.
+      const OTHER_LOCATION = "Other";
       const HOTEL_LOCATIONS = [
-        "Colorado Ballroom",
-        "Crystal Peak",
-        "Sopris A",
-        "Sopris B",
-        "Columbia",
-        "Harvard",
-        "Yale",
-        "Princeton",
         "Grand Hyatt Lobby",
         "Lobby Bar",
         "Restaurant/Café",
         "Hotel Hallway",
         "Exhibitor Hall",
         "Outdoor Terrace",
-        "Other",
+        OTHER_LOCATION,
       ];
+
+      function onLocationChange() {
+        const sel = document.getElementById("mLocation");
+        const other = document.getElementById("mLocationOther");
+        if (!sel || !other) return;
+        const isOther = sel.value === OTHER_LOCATION;
+        other.style.display = isOther ? "" : "none";
+        if (isOther) other.focus();
+        else other.value = "";
+      }
+
+      // "Other" is a UI affordance, never a stored value.
+      function resolveMeetingLocation() {
+        const sel = document.getElementById("mLocation")?.value || "";
+        if (sel !== OTHER_LOCATION) return sel;
+        return document.getElementById("mLocationOther")?.value.trim() || "";
+      }
 
       function renderMeetingsView(q) {
         const ql = q.toLowerCase();
@@ -4216,8 +4270,10 @@
       <div class="meeting-form-title">⚔ Log New Meeting</div>
       <div class="admin-form">
         <div class="admin-field">
-          <label>Participants (search &amp; add)</label>
-          <div class="participant-search-dropdown">
+          <label>Participants${adminMode ? " (search &amp; add)" : ""}</label>
+          ${
+            adminMode
+              ? `<div class="participant-search-dropdown">
             <input type="text" class="participant-search-input" id="pSearchInput"
               placeholder="Type a name…" autocomplete="off"
               oninput="filterParticipantDropdown(this.value)"
@@ -4228,7 +4284,12 @@
           <div class="selected-participants" id="selectedParticipants">
             ${meetingFormParticipants.map((p) => `<span class="sel-chip" onclick="removeMeetingParticipant('${escA(p)}')">${esc(p)} <span class="sel-chip-x">✕</span></span>`).join("")}
             ${meetingFormParticipants.length === 0 ? `<span style="font-size:11px;color:var(--muted);font-style:italic">No participants added yet</span>` : ""}
-          </div>
+          </div>`
+              : myParticipantName
+                ? `<div class="selected-participants"><span class="sel-chip">${esc(myParticipantName)}</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">You can schedule meetups for yourself.</div>`
+                : `<div style="font-size:11px;color:var(--red)">This account isn't linked to a participant yet. Ask an organizer.</div>`
+          }
         </div>
         <div class="admin-row">
           <div class="admin-field">
@@ -4238,10 +4299,14 @@
           </div>
           <div class="admin-field">
             <label>Hotel Location</label>
-            <select id="mLocation" class="admin-select" style="margin-bottom:0">
+            <select id="mLocation" class="admin-select" style="margin-bottom:0"
+              onchange="onLocationChange()">
               <option value="">— Select location —</option>
               ${HOTEL_LOCATIONS.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("")}
             </select>
+            <input type="text" id="mLocationOther" class="participant-search-input"
+              style="display:none;margin-top:6px" maxlength="60"
+              placeholder="Describe the space, e.g. “Pool deck, north end”">
           </div>
         </div>
         <div class="admin-field">
@@ -4289,7 +4354,7 @@
           ${m.topic ? `<div class="meeting-topic">${esc(m.topic)}</div>` : ""}
           <div class="meeting-id">ID: ${m.id}</div>
         </div>
-        <button class="meeting-remove" onclick="removeMeeting('${escA(m.id)}')" title="Delete meeting">✕</button>
+        ${adminMode || (m.ownerId && m.ownerId === sbSession?.user?.id) ? `<button class="meeting-remove" onclick="removeMeeting('${escA(m.id)}')" title="Delete meeting">✕</button>` : ""}
       </div>
     </div>`;
               })
@@ -4408,15 +4473,31 @@
 
       async function saveMeeting() {
         const datetime = document.getElementById("mDatetime")?.value || "";
-        const hotelLocation = document.getElementById("mLocation")?.value || "";
+        const hotelLocation = resolveMeetingLocation();
         const topic = document.getElementById("mTopic")?.value?.trim() || "";
-        if (!meetingFormParticipants.length) {
-          alert("Add at least one participant before saving.");
+
+        // Authors schedule only for themselves. This is convenience, not
+        // security — RLS on meetings/meeting_participants is the real gate.
+        const participants = adminMode
+          ? [...meetingFormParticipants]
+          : myParticipantName
+            ? [myParticipantName]
+            : [];
+        if (!participants.length) {
+          alert(
+            adminMode
+              ? "Add at least one participant before saving."
+              : "This account isn't linked to a participant yet.",
+          );
+          return;
+        }
+        if (document.getElementById("mLocation")?.value === OTHER_LOCATION && !hotelLocation) {
+          alert("Describe the space, or pick a location from the list.");
           return;
         }
         const meeting = {
           id: Date.now().toString(36),
-          participants: [...meetingFormParticipants],
+          participants,
           datetime,
           hotelLocation,
           topic,
