@@ -4412,14 +4412,13 @@
         const appearances = participantIndex[name];
         const p = getProfile(name);
         const isOpen = openCards[name];
-        const activeTab = typeof isOpen === "string" ? isOpen : "panels";
+        // A card left open on a since-removed tab would render no section at
+        // all, so anything not currently valid falls back to Panels.
+        const validTabs = adminMode ? ["panels", "edit"] : ["panels"];
+        const requested = typeof isOpen === "string" ? isOpen : "panels";
+        const activeTab = validTabs.includes(requested) ? requested : "panels";
         const booth = p.booth || "";
         const publisher = p.publisher || "";
-        const bio = getEffectiveBio(name);
-        const series = getEffectiveSeries(name);
-        const social = p.social || {};
-        const fanEvents = p.fanEvents || [];
-        const hasFanEvents = fanEvents.length > 0;
 
         const chips = [
           booth
@@ -4435,8 +4434,6 @@
         // BODY TABS
         const bodyTabsHtml = `<div class="body-tabs">
     <div class="body-tab ${activeTab === "panels" ? "active" : ""}" onclick="switchBodyTab('${escA(name)}','panels')">Panels (${appearances.length})</div>
-    <div class="body-tab ${activeTab === "profile" ? "active" : ""}" onclick="switchBodyTab('${escA(name)}','profile')">Profile</div>
-    <div class="body-tab ${activeTab === "connect" ? "active" : ""}" onclick="switchBodyTab('${escA(name)}','connect')">Fan Connect${hasFanEvents ? " ★" : ""}</div>
     ${adminMode ? `<div class="body-tab ${activeTab === "edit" ? "active" : ""}" onclick="switchBodyTab('${escA(name)}','edit')">✏ Edit</div>` : ""}
   </div>`;
 
@@ -4453,49 +4450,6 @@
     </div>`,
           )
           .join("");
-
-        // PROFILE SECTION
-        const socialLinks = Object.entries(social)
-          .filter(([k, v]) => v)
-          .map(
-            ([k, v]) =>
-              `<a class="social-link" href="${esc(v)}" target="_blank" rel="noopener">${esc(k)}</a>`,
-          )
-          .join("");
-        const seriesTags = series
-          .map((s) => `<span class="series-tag">${esc(s)}</span>`)
-          .join("");
-        const profileHtml = `<div class="body-section${activeTab === "profile" ? " active" : ""}">
-    <div class="profile-grid">
-      <div>${avatarHtml(name, "lg")}</div>
-      <div>
-        ${bio ? `<div class="bio-text">${esc(bio)}</div>` : '<div class="bio-text" style="color:var(--muted);font-style:italic">No bio yet.</div>'}
-        ${publisher ? `<div class="info-row"><span class="info-label">Publisher</span><span class="info-val">${esc(publisher)}</span></div>` : ""}
-        ${booth ? `<div class="info-row"><span class="info-label">Booth</span><span class="info-val">${esc(booth)}</span></div>` : ""}
-        ${series.length ? `<div class="info-row"><span class="info-label">Series</span><div class="series-list">${seriesTags}</div></div>` : ""}
-        ${socialLinks ? `<div class="social-links" style="margin-top:8px">${socialLinks}</div>` : ""}
-      </div>
-    </div>
-  </div>`;
-
-        // CONNECT SECTION
-        const eventsHtml = fanEvents.length
-          ? fanEvents
-              .map(
-                (e) => `<div class="fan-event">
-        <div class="fan-event-title">${esc(e.title || "Untitled Event")}</div>
-        <div class="fan-event-meta">
-          ${e.day ? `<span>📅 ${esc(e.day)}</span>` : ""}
-          ${e.time ? `<span>🕐 ${esc(e.time)}</span>` : ""}
-          ${e.location ? `<span>📍 ${esc(e.location)}</span>` : ""}
-          ${e.duration ? `<span>⏱ ${esc(e.duration)}</span>` : ""}
-        </div>
-        ${e.description ? `<div class="fan-event-desc">${esc(e.description)}</div>` : ""}
-      </div>`,
-              )
-              .join("")
-          : `<div class="no-events">No fan events scheduled yet. Check back!</div>`;
-        const connectHtml = `<div class="body-section${activeTab === "connect" ? " active" : ""}">${eventsHtml}</div>`;
 
         // EDIT SECTION (admin only)
         const editHtml = adminMode
@@ -4519,8 +4473,6 @@
       <div class="body-section${activeTab === "panels" ? " active" : ""}">
         ${panelItems}
       </div>
-      ${profileHtml}
-      ${connectHtml}
       ${editHtml}
     </div>
   </div>`;
