@@ -131,6 +131,39 @@
         border-color: var(--gold);
         color: var(--gold);
       }
+      /* Mirrors .admin-btn in the opposite corner so the header stays balanced. */
+      .help-btn {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        line-height: 1;
+        transition: all 0.2s;
+      }
+      .help-btn:hover,
+      .help-btn:focus-visible {
+        border-color: var(--teal);
+        color: var(--teal);
+      }
+      /* Anchor jump is a scroll, not a teleport — unless the reader opts out. */
+      @media (prefers-reduced-motion: no-preference) {
+        html {
+          scroll-behavior: smooth;
+        }
+      }
+      .site-footer:target {
+        border-top-color: var(--teal);
+      }
 
       /* SEARCH */
       .search-wrap {
@@ -1341,6 +1374,13 @@
     </div>
 
     <header>
+      <a
+        class="help-btn"
+        href="#about"
+        aria-label="About this site — who made it and how to help"
+        title="About this site"
+        >?</a
+      >
       <button
         class="admin-btn"
         id="adminToggleBtn"
@@ -1392,13 +1432,17 @@
 
     <main id="main"></main>
 
-    <footer class="site-footer">
-      <div>By Phyllip Hall and Seth Ring</div>
+    <footer class="site-footer" id="about">
+      <div>Created for LitRPG Con fans by Phyllip Hall and Seth Ring</div>
       <div class="footer-contribute">
-        Want to help build this?
+        Want more info or to help improve the site:
         <a
-          href="mailto:seth@sethring.com?subject=Program%20Sidekick%20—%20I%27d%20like%20to%20help"
-          >Email Seth</a
+          href="mailto:phyllip.hall@gmail.com?subject=Program%20Sidekick"
+          >Email Phyllip</a
+        >
+        or
+        <a href="mailto:seth@sethring.com?subject=Program%20Sidekick"
+          >Seth</a
         >
       </div>
     </footer>
