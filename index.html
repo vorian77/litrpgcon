@@ -171,7 +171,7 @@
   .add-event-btn{background:transparent;border:1px dashed var(--border);color:var(--muted);font-family:'Inter',sans-serif;font-size:12px;padding:8px;width:100%;border-radius:6px;cursor:pointer;transition:all .2s;margin-top:4px}
   .add-event-btn:hover{border-color:var(--teal);color:var(--teal)}
 
-  /* MEET & GREET CARDS */
+  /* MEETUP CARDS */
   .mg-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));margin-bottom:8px}
   .mg-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s}
   .mg-card:hover{border-color:var(--teal-dim)}
@@ -239,14 +239,25 @@
 
 <!-- LOGIN OVERLAY -->
 <div class="overlay hidden" id="loginOverlay">
-  <div class="login-box">
+  <div class="login-box" id="loginBox">
     <h2>⚔ Admin Sign In</h2>
     <p>Sign in with your admin email and password.</p>
     <input type="email" class="login-input" id="loginEmail" placeholder="Email…" autocomplete="email" style="margin-bottom:8px">
     <input type="password" class="login-input" id="loginInput" placeholder="Password…" autocomplete="current-password">
     <button class="login-btn" id="loginBtn" onclick="attemptLogin()">Sign In</button>
     <div class="login-err" id="loginErr"></div>
-    <span class="login-cancel" onclick="closeLogin()">Cancel</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <span class="login-cancel" onclick="closeLogin()">Cancel</span>
+      <span class="login-cancel" onclick="showResetForm()" style="color:var(--muted);font-size:11px">Forgot password?</span>
+    </div>
+  </div>
+  <div class="login-box hidden" id="resetBox">
+    <h2>🔑 Reset Password</h2>
+    <p>Enter your admin email and we'll send a reset link.</p>
+    <input type="email" class="login-input" id="resetEmail" placeholder="Email…" autocomplete="email">
+    <button class="login-btn" id="resetBtn" onclick="sendReset()">Send Reset Link</button>
+    <div class="login-err" id="resetMsg"></div>
+    <span class="login-cancel" onclick="showLoginForm()" style="margin-top:10px;display:block">← Back to sign in</span>
   </div>
 </div>
 
@@ -265,7 +276,7 @@
   <div class="tabs">
     <button class="tab active" data-view="people">👤 By Participant</button>
     <button class="tab" data-view="meetings" id="meetingsTab" style="display:none">🤝 Meetings</button>
-    <button class="tab" data-view="events">🤩 Meet &amp; Greets</button>
+    <button class="tab" data-view="events">🤩 Meetups</button>
     <button class="tab" data-view="schedule">📅 Full Schedule</button>
     <button class="tab" data-view="friday">Fri Jul 10</button>
     <button class="tab" data-view="saturday">Sat Jul 11</button>
@@ -454,7 +465,7 @@ let meetings = [];  // [{id, participants:[], datetime, hotelLocation, topic, cr
 let meetingFormOpen = false;
 let meetingFormParticipants = [];
 let meetingDropdownQuery = '';
-let mgRoomFilter = ''; // Meet & Greets room filter
+let mgRoomFilter = ''; // Meetups room filter
 let currentView = 'people';
 let searchTerm = '';
 let openCards = {};// name -> active body tab
@@ -685,6 +696,46 @@ function closeLogin() {
   document.getElementById('loginEmail').value = '';
   document.getElementById('loginInput').value = '';
   document.getElementById('loginErr').textContent = '';
+  showLoginForm();
+}
+function showResetForm() {
+  document.getElementById('loginBox').classList.add('hidden');
+  document.getElementById('resetBox').classList.remove('hidden');
+  document.getElementById('resetEmail').value = document.getElementById('loginEmail').value;
+  document.getElementById('resetMsg').textContent = '';
+  setTimeout(()=>document.getElementById('resetEmail').focus(), 50);
+}
+function showLoginForm() {
+  document.getElementById('resetBox').classList.add('hidden');
+  document.getElementById('loginBox').classList.remove('hidden');
+}
+async function sendReset() {
+  const email = document.getElementById('resetEmail').value.trim();
+  const msgEl = document.getElementById('resetMsg');
+  const btn = document.getElementById('resetBtn');
+  if (!email) { msgEl.textContent = 'Enter your email address.'; msgEl.style.color='var(--red)'; return; }
+  btn.textContent = 'Sending…'; btn.disabled = true; msgEl.textContent = '';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: 'POST',
+      headers: {'apikey': SUPABASE_ANON, 'Content-Type': 'application/json'},
+      body: JSON.stringify({email})
+    });
+    if (res.ok) {
+      msgEl.style.color = 'var(--teal)';
+      msgEl.textContent = '✓ Reset link sent! Check your email.';
+      btn.textContent = 'Sent';
+    } else {
+      const err = await res.json();
+      msgEl.style.color = 'var(--red)';
+      msgEl.textContent = err.msg || err.error_description || 'Something went wrong.';
+      btn.textContent = 'Send Reset Link'; btn.disabled = false;
+    }
+  } catch(e) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = 'Connection error.';
+    btn.textContent = 'Send Reset Link'; btn.disabled = false;
+  }
 }
 document.getElementById('loginInput').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
 
@@ -867,7 +918,7 @@ function renderAdminForm(name) {
     </div>
     <div class="admin-field"><label>Discord</label><input id="af-disc-${escA(name)}" value="${esc(social.Discord||'')}" placeholder="https://discord.gg/…"></div>
 
-    <div class="admin-section-title">🤩 Meet &amp; Greet Events</div>
+    <div class="admin-section-title">🤩 Meetup Events</div>
     <div class="fan-events-admin" id="fea-${escA(name)}">${fanEventItems}</div>
     <button class="add-event-btn" onclick="addFanEvent('${escA(name)}')">+ Add Fan Event</button>
 
@@ -1117,7 +1168,7 @@ async function removeMeeting(id) {
 }
 
 // ═══════════════════════════════════════════════════════
-// MEET & GREETS VIEW
+// MEETUPS VIEW
 // ═══════════════════════════════════════════════════════
 const DAY_ORDER = {Thursday:0,Friday:1,Saturday:2,Sunday:3};
 
@@ -1169,11 +1220,11 @@ function renderEventsView(q) {
 
   if (!allEvents.length) {
     const hint = adminMode
-      ? 'Open any participant card → ✏ Edit → scroll to Meet &amp; Greet Events → Add Event.'
+      ? 'Open any participant card → ✏ Edit → scroll to Meetup Events → Add Event.'
       : 'Check back soon — the schedule is being updated.';
     return `${roomPills}<div class="empty-state">
       <div class="icon">🤩</div>
-      <p style="margin-bottom:8px">${mgRoomFilter ? `No Meet &amp; Greets in <strong>${esc(mgRoomFilter)}</strong>.` : 'No Meet &amp; Greets scheduled yet.'}</p>
+      <p style="margin-bottom:8px">${mgRoomFilter ? `No Meetups in <strong>${esc(mgRoomFilter)}</strong>.` : 'No Meetups scheduled yet.'}</p>
       <p style="font-size:12px;color:var(--muted)">${hint}</p>
     </div>`;
   }
@@ -1191,8 +1242,8 @@ function renderEventsView(q) {
   const dayDates = {Friday:'Jul 10',Saturday:'Jul 11',Sunday:'Jul 12'};
 
   const countLabel = (q||mgRoomFilter)
-    ? `<strong>${allEvents.length}</strong> meet &amp; greet${allEvents.length!==1?'s':''} match${mgRoomFilter?` in <strong>${esc(mgRoomFilter)}</strong>`:''}`
-    : `<strong>${allEvents.length}</strong> meet &amp; greet${allEvents.length!==1?'s':''} scheduled`;
+    ? `<strong>${allEvents.length}</strong> meetup${allEvents.length!==1?'s':''} match${mgRoomFilter?` in <strong>${esc(mgRoomFilter)}</strong>`:''}`
+    : `<strong>${allEvents.length}</strong> meetup${allEvents.length!==1?'s':''} scheduled`;
 
   let html = `${roomPills}<div class="results-count">${countLabel}</div>`;
 
