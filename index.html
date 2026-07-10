@@ -109,15 +109,6 @@
       .footer-contribute {
         margin-top: 4px;
       }
-      .footer-note {
-        margin-top: 2px;
-        font-size: 11px;
-        opacity: 0.65;
-      }
-      .footer-sep {
-        margin: 0 7px;
-        opacity: 0.4;
-      }
       .admin-btn {
         position: absolute;
         top: 16px;
@@ -1388,7 +1379,7 @@
         >
           🤝 Manage Meetups
         </button>
-        <!-- Hidden until the meetups feature ships: delete style to re-enable. -->
+        <!-- Both meetup tabs are driven by MEETUPS_ENABLED, not this style. -->
         <button class="tab" data-view="events" id="meetupsTab" style="display: none">
           🤩 Meetups
         </button>
@@ -1406,19 +1397,9 @@
       <div class="footer-contribute">
         Want to help build this?
         <a
-          href="https://github.com/vorian77/litrpgcon"
-          target="_blank"
-          rel="noopener"
-          >Browse the code</a
-        >
-        <span class="footer-sep">·</span>
-        <a
           href="mailto:seth@sethring.com?subject=Program%20Sidekick%20—%20I%27d%20like%20to%20help"
           >Email Seth</a
         >
-      </div>
-      <div class="footer-note">
-        Pull requests, schedule corrections, and missing panels all welcome.
       </div>
     </footer>
 
@@ -3477,6 +3458,11 @@
       // ═══════════════════════════════════════════════════════
       // STATE & STORAGE
       // ═══════════════════════════════════════════════════════
+      // Meetups are off for this iteration. Flip to true to restore both the
+      // public Meetups tab and the admin Manage Meetups tab. The views, the
+      // tables and the RLS policies all remain in place.
+      const MEETUPS_ENABLED = false;
+
       let adminMode = false; // true only for role === "admin"
       let currentRole = null; // "admin" | "author" | null when signed out
       let myParticipantName = null; // roster name this account may schedule for
@@ -3675,6 +3661,7 @@
       // Public: meetings are the source for the Meetups view. Writes stay
       // admin-only via saveMeetingToDb / deleteMeetingFromDb.
       async function loadMeetings() {
+        if (!MEETUPS_ENABLED) return; // no unreachable data over the wire
         try {
           const [rows, parts] = await Promise.all([
             sbFetch("meetings?select=*&order=created_at.asc"),
@@ -3740,7 +3727,7 @@
       // ── AUTH ──
       function setMeetingsTabVisible(visible) {
         const t = document.getElementById("meetingsTab");
-        if (t) t.style.display = visible ? "" : "none";
+        if (t) t.style.display = visible && MEETUPS_ENABLED ? "" : "none";
       }
 
       // Role lives in app_metadata, which only the service role can write.
@@ -4827,6 +4814,14 @@
           render();
         });
       });
+
+      // Single source of truth for both meetup tabs; the inline style is only
+      // the pre-JS default so the tab never flashes before this runs.
+      const meetupsTabEl = document.getElementById("meetupsTab");
+      if (meetupsTabEl)
+        meetupsTabEl.style.display = MEETUPS_ENABLED ? "" : "none";
+      if (!MEETUPS_ENABLED && (currentView === "events" || currentView === "meetings"))
+        currentView = "people";
 
       render(); // paint from hardcoded data; Supabase data hydrates below
       Promise.all([loadProfiles(), loadMeetings()]).then(render);
