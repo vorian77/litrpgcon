@@ -1,0 +1,4 @@
+{
+  "buildCommand": "grep -q __COMMIT__ index.html || { echo 'build stamp: __COMMIT__ placeholder is missing from index.html'; exit 1; }; SHA=$(printf %s \"${VERCEL_GIT_COMMIT_SHA:-dev}\" | cut -c1-7); sed \"s/__COMMIT__/$SHA/g\" index.html > index.stamped && mv index.stamped index.html && ! grep -q __COMMIT__ index.html && echo \"build stamp: $SHA\" || { echo 'build stamp: substitution failed'; exit 1; }",
+  "outputDirectory": "."
+}

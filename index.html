@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LitRPG Con 2026 — Panel Finder</title>
+    <title>LitRPG Con 2026 — Program Sidekick</title>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap");
       :root {
@@ -78,6 +78,14 @@
         font-size: 13px;
         color: var(--muted);
         letter-spacing: 0.05em;
+      }
+      .header-version {
+        margin-top: 6px;
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        opacity: 0.5;
       }
       .admin-btn {
         position: absolute;
@@ -1321,8 +1329,11 @@
       <div class="header-eyebrow">Grand Hyatt Denver · July 10–12, 2026</div>
       <h1>LitRPG<span>Con</span> 2026</h1>
       <p class="header-sub">
-        Panel Finder — Search participants &amp; schedule
+        Program Sidekick — a searchable companion to your printed program
       </p>
+      <!-- __COMMIT__ is replaced with the short SHA by vercel.json's
+           buildCommand. It stays literal on an unbuilt working copy. -->
+      <div class="header-version">build __COMMIT__</div>
     </header>
 
     <div class="search-wrap">
