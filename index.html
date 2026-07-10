@@ -3567,7 +3567,9 @@
       }
 
       async function saveProfile(name) {
-        if (!sbSession || !profiles[name]) return;
+        // Never return quietly: saveAdminForm would flash "✓ Saved!" regardless.
+        if (!sbSession) throw new Error("Not signed in — sign in and retry.");
+        if (!profiles[name]) throw new Error(`No profile loaded for ${name}.`);
         const p = profiles[name];
         await sbFetch("profiles", {
           method: "POST",
@@ -3617,7 +3619,8 @@
       }
 
       async function saveMeetingToDb(meeting) {
-        if (!sbSession) return;
+        // Never return quietly: the caller would render an unsaved record.
+        if (!sbSession) throw new Error("Not signed in — sign in and retry.");
         await sbFetch("meetings", {
           method: "POST",
           headers: { Prefer: "resolution=merge-duplicates" },
@@ -3644,7 +3647,7 @@
       }
 
       async function deleteMeetingFromDb(id) {
-        if (!sbSession) return;
+        if (!sbSession) throw new Error("Not signed in — sign in and retry.");
         await sbFetch(`meetings?id=eq.${encodeURIComponent(id)}`, {
           method: "DELETE",
         });
@@ -4408,7 +4411,7 @@
         };
         try {
           await saveMeetingToDb(meeting);
-          meetings.push(meeting);
+          await loadMeetings(); // re-read, so the list can only show saved rows
         } catch (e) {
           alert("Error saving meeting: " + e.message);
           return;
