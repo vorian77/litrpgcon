@@ -3868,10 +3868,20 @@
       function getProfile(name) {
         return profiles[name] || {};
       }
+      // The Squarespace CDN resizes and negotiates WebP on demand. Unsized, it
+      // ships a 2400px PNG (~2MB) into an 80px slot. 300w covers 80–90px at 2x.
+      // Only rewrite URLs on that host, and never one that already has a query
+      // string — admins can paste arbitrary photo URLs into profiles.photo.
+      const CDN_HOST = "https://images.squarespace-cdn.com/";
+      function sizedPhoto(url) {
+        if (!url || !url.startsWith(CDN_HOST) || url.includes("?")) return url;
+        return url + "?format=300w";
+      }
+
       function getEffectivePhoto(name) {
         const p = getProfile(name);
-        if (p.photo) return p.photo;
-        if (featuredGuests[name]) return featuredGuests[name].photo;
+        if (p.photo) return sizedPhoto(p.photo);
+        if (featuredGuests[name]) return sizedPhoto(featuredGuests[name].photo);
         return null;
       }
       function getEffectiveBio(name) {
@@ -4317,7 +4327,7 @@
         const photo = getEffectivePhoto(name);
         if (size === "lg")
           return photo
-            ? `<img class="profile-photo" src="${esc(photo)}" alt="${esc(name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` +
+            ? `<img class="profile-photo" src="${esc(photo)}" alt="${esc(name)}" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` +
                 `<div class="profile-photo-placeholder" style="display:none">👤</div>`
             : `<div class="profile-photo-placeholder">👤</div>`;
         return photo
@@ -5069,7 +5079,7 @@
           byDay[day].forEach(({ name, event: e }) => {
             const photo = getEffectivePhoto(name);
             const photoHtml = photo
-              ? `<img class="mg-photo" src="${esc(photo)}" alt="${esc(name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="mg-photo-placeholder" style="display:none">👤</div>`
+              ? `<img class="mg-photo" src="${esc(photo)}" alt="${esc(name)}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="mg-photo-placeholder" style="display:none">👤</div>`
               : `<div class="mg-photo-placeholder">👤</div>`;
 
             html += `<div class="mg-card">
