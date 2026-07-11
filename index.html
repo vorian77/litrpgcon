@@ -1307,6 +1307,17 @@
         }
       }
     </style>
+    <!-- Vercel Web Analytics. Same-origin path; Vercel's edge serves it only
+         after Web Analytics is enabled in Project Settings, so it 404s until
+         then. The inline shim queues events fired before the script loads. -->
+    <script>
+      window.va =
+        window.va ||
+        function () {
+          (window.vai = window.vai || []).push(arguments);
+        };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
   </head>
   <body>
     <!-- LOGIN OVERLAY -->
