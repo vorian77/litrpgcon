@@ -435,6 +435,12 @@
         flex-wrap: wrap;
         gap: 10px;
       }
+      .panel-item-desc {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+        margin-top: 5px;
+      }
       .panel-role {
         color: var(--gold);
         font-weight: 500;
@@ -4457,6 +4463,7 @@
       <div>
         <div class="panel-title">${esc(panel.title)}</div>
         <div class="panel-meta"><span>🕐 ${panel.time}</span><span>📍 ${panel.location}</span><span class="panel-role">⚔ ${role}</span></div>
+        ${panel.description ? `<div class="panel-item-desc">${esc(panel.description)}</div>` : ""}
       </div>
     </div>`,
           )
