@@ -181,7 +181,15 @@
         transform: translateY(-50%);
         color: var(--teal);
         font-size: 18px;
-        pointer-events: none;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+        line-height: 1;
+      }
+      .search-icon:hover,
+      .search-icon:focus-visible {
+        color: var(--gold);
       }
       #search {
         width: 100%;
@@ -1417,7 +1425,15 @@
 
     <div class="search-wrap">
       <div class="search-input-wrap">
-        <span class="search-icon">⚔</span>
+        <button
+          type="button"
+          class="search-icon"
+          onclick="clearSearch()"
+          aria-label="Clear search"
+          title="Clear search"
+        >
+          ⚔
+        </button>
         <input
           type="text"
           id="search"
@@ -5207,6 +5223,13 @@
         searchTerm = e.target.value.trim();
         render();
       });
+      function clearSearch() {
+        const input = document.getElementById("search");
+        input.value = "";
+        searchTerm = "";
+        render();
+        input.focus();
+      }
       document.querySelectorAll(".tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           document
